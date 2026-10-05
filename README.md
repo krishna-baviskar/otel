@@ -1,5 +1,5 @@
 # OpenTelemetry and Dynatrace
-
+ 
 Microservice-based demo project showcasing Dynatrace's tracing functionality in combination with OpenTelemetry.
 
 Author: **[Krishna Baviskar](https://github.com/krishna-baviskar)**  
