@@ -7,7 +7,7 @@ data:
   PORT: '4200'
   REDIS_HOST: redis
   REDIS_PORT: '6379'
-  REDIS_DB: '2'
+  REDIS_DB: '2' 
 
 ---
 apiVersion: v1
