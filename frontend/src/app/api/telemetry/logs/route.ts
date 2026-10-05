@@ -1,28 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCorrelatedLogs } from '@/lib/telemetry-service';
+import { getLiveLogs } from '@/lib/live-traffic';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const service = searchParams.get('service');
-    const level = searchParams.get('level');
-    const search = searchParams.get('search')?.toLowerCase();
-    const traceId = searchParams.get('traceId');
+    const service = searchParams.get('service') ?? undefined;
+    const level = searchParams.get('level') ?? undefined;
+    const search = searchParams.get('search') ?? undefined;
+    const traceId = searchParams.get('traceId') ?? undefined;
+    const limit = parseInt(searchParams.get('limit') ?? '100', 10);
 
-    let logs = getCorrelatedLogs();
-
-    if (service && service !== 'all') {
-      logs = logs.filter(l => l.service === service);
-    }
-    if (level && level !== 'all') {
-      logs = logs.filter(l => l.level === level);
-    }
-    if (traceId) {
-      logs = logs.filter(l => l.traceId === traceId);
-    }
-    if (search) {
-      logs = logs.filter(l => l.message.toLowerCase().includes(search) || l.service.toLowerCase().includes(search));
-    }
+    const logs = getLiveLogs({ service, level, search, traceId, limit });
 
     return NextResponse.json({
       total: logs.length,

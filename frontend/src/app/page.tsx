@@ -41,7 +41,7 @@ export default function DashboardPage() {
       if (statusRes.ok) setStatus(await statusRes.json());
       if (tracesRes.ok) {
         const tData = await tracesRes.json();
-        setTraces(tData.traces || []);
+        setTraces(Array.isArray(tData) ? tData : (tData.traces ?? []));
       }
       if (incidentsRes.ok) {
         const iData = await incidentsRes.json();
@@ -56,7 +56,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 6000);
+    const interval = setInterval(fetchDashboardData, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -88,11 +88,17 @@ export default function DashboardPage() {
 
           <div className="flex items-center gap-3">
             <Link
-              href="/demo"
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-600/30 flex items-center gap-2 transition-all"
+              href="/traces"
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-600/30 flex items-center gap-2 transition-all active:scale-95"
             >
               <Zap className="w-4 h-4 fill-white" />
-              Interactive Demo Lab
+              ⚡ Trigger Real Request
+            </Link>
+            <Link
+              href="/demo"
+              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 flex items-center gap-2 transition-all"
+            >
+              Interactive Lab
             </Link>
           </div>
         </div>
@@ -257,15 +263,15 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 font-mono">
                           <span className="text-blue-400">{traceId.substring(0, 16)}...</span>
                           <span>•</span>
-                          <span>{trace.spanCount} spans</span>
+                          <span>{trace.spanCount ?? 1} spans</span>
                           <span>•</span>
-                          <span>{trace.services.join(", ")}</span>
+                          <span>{(trace.services || []).join(", ") || "backend"}</span>
                         </div>
                       </div>
 
                       <div className="text-right">
                         <div className="font-mono text-xs font-bold text-slate-200">
-                          {dur.toFixed(1)} ms
+                          {(dur ?? 0).toFixed(1)} ms
                         </div>
                         <div className="text-[10px] text-slate-500">
                           {timeStr}

@@ -30,8 +30,10 @@ interface TraceWaterfallProps {
 }
 
 export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
+  const spans = Array.isArray(trace?.spans) ? trace.spans : [];
+
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(
-    trace.spans[0]?.id || null
+    spans[0]?.id || null
   );
   const [copiedTrace, setCopiedTrace] = useState(false);
   const [copiedSpan, setCopiedSpan] = useState(false);
@@ -39,32 +41,25 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
 
   // Find min start and max end to normalize timeline
-  const minTime = Math.min(...trace.spans.map((s) => s.startTime));
-  const maxTime = Math.max(...trace.spans.map((s) => s.endTime));
-  const totalDuration = Math.max(1, maxTime - minTime);
+  const minTime = spans.length > 0 ? Math.min(...spans.map((s) => s.startTime ?? 0)) : 0;
+  const maxTime = spans.length > 0 ? Math.max(...spans.map((s) => s.endTime ?? s.duration ?? 1)) : 1;
+  const rawDuration = trace?.duration ?? (maxTime - minTime);
+  const totalDuration = Math.max(1, rawDuration);
 
-  const selectedSpan = trace.spans.find((s) => s.id === selectedSpanId) || trace.spans[0];
+  const selectedSpan = spans.find((s) => s.id === selectedSpanId) || spans[0];
 
   const handleCopyTrace = () => {
-    navigator.clipboard.writeText(trace.id);
-    setCopiedTrace(true);
-    setTimeout(() => setCopiedTrace(false), 2000);
+    if (trace?.id) {
+      navigator.clipboard.writeText(trace.id);
+      setCopiedTrace(true);
+      setTimeout(() => setCopiedTrace(false), 2000);
+    }
   };
 
   const handleCopySpan = (spanId: string) => {
     navigator.clipboard.writeText(spanId);
     setCopiedSpan(true);
     setTimeout(() => setCopiedSpan(false), 2000);
-  };
-
-  const toggleCollapse = (spanId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setCollapsedSpans((prev) => {
-      const next = new Set(prev);
-      if (next.has(spanId)) next.delete(spanId);
-      else next.add(spanId);
-      return next;
-    });
   };
 
   // Color mapping per service
@@ -78,18 +73,21 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
         return { bg: "bg-emerald-500", text: "text-emerald-400", border: "border-emerald-500/30", bar: "#10b981" };
       case "redis":
         return { bg: "bg-red-500", text: "text-red-400", border: "border-red-500/30", bar: "#ef4444" };
+      case "mongodb":
       case "mongo":
         return { bg: "bg-teal-500", text: "text-teal-400", border: "border-teal-500/30", bar: "#14b8a6" };
+      case "external-mail":
+        return { bg: "bg-purple-500", text: "text-purple-400", border: "border-purple-500/30", bar: "#a855f7" };
       default:
         return { bg: "bg-blue-500", text: "text-blue-400", border: "border-blue-500/30", bar: "#3b82f6" };
     }
   };
 
-  const filteredSpans = trace.spans.filter((s) => {
+  const filteredSpans = spans.filter((s) => {
     if (!searchTerm) return true;
     return (
-      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.serviceName.toLowerCase().includes(searchTerm.toLowerCase())
+      (s.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.serviceName || "").toLowerCase().includes(searchTerm.toLowerCase())
     );
   });
 
@@ -100,9 +98,9 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
         <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs uppercase tracking-wider font-semibold text-slate-400">Trace</span>
+              <span className="text-xs uppercase tracking-wider font-semibold text-slate-400">Distributed Trace</span>
               <span className="font-mono text-xs bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-blue-400">
-                {trace.id}
+                {trace?.id}
               </span>
               <button
                 onClick={handleCopyTrace}
@@ -111,11 +109,11 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
               >
                 {copiedTrace ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
-              <ModeBadge mode={trace.source === "tempo" ? "LOCAL" : "LIVE"} />
+              <ModeBadge mode={trace?.source === "tempo" ? "LOCAL" : "LIVE"} />
             </div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              {trace.rootOperation}
-              {trace.hasErrors && (
+              {trace?.rootOperation || "Distributed Operation"}
+              {trace?.hasErrors && (
                 <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-950 text-red-400 border border-red-800 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> Error in trace
                 </span>
@@ -123,16 +121,16 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
             </h2>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Link
-              href={`/logs?traceId=${trace.id}`}
+              href={`/logs?traceId=${trace?.id}`}
               className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition-colors"
             >
               <FileText className="w-3.5 h-3.5 text-blue-400" />
               Correlated Logs
             </Link>
             <a
-              href={`http://localhost:3000/explore?left=%5B%22now-1h%22,%22now%22,%22Tempo%22,%7B%22query%22:%22${trace.id}%22%7D%5D`}
+              href={`http://localhost:3000/explore?left=%5B%22now-1h%22,%22now%22,%22Tempo%22,%7B%22query%22:%22${trace?.id}%22%7D%5D`}
               target="_blank"
               rel="noopener noreferrer"
               className="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 text-xs font-medium border border-blue-500/30 flex items-center gap-1.5 transition-colors"
@@ -149,28 +147,28 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
             <span className="text-slate-400 block mb-1">Total Duration</span>
             <div className="flex items-center gap-1.5 font-mono text-base font-bold text-white">
               <Clock className="w-4 h-4 text-blue-400" />
-              {trace.duration.toFixed(2)} ms
+              {totalDuration.toFixed(2)} ms
             </div>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
             <span className="text-slate-400 block mb-1">Spans Count</span>
             <div className="flex items-center gap-1.5 font-mono text-base font-bold text-white">
               <Layers className="w-4 h-4 text-indigo-400" />
-              {trace.spanCount} spans
+              {trace?.spanCount ?? spans.length} spans
             </div>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
             <span className="text-slate-400 block mb-1">Services Involved</span>
             <div className="flex items-center gap-1.5 font-mono text-base font-bold text-white">
               <Code2 className="w-4 h-4 text-emerald-400" />
-              {trace.services.length} services
+              {trace?.services?.length ?? 0} services
             </div>
           </div>
           <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
             <span className="text-slate-400 block mb-1">Timestamp</span>
             <div className="flex items-center gap-1.5 font-mono text-xs text-slate-300">
               <Calendar className="w-3.5 h-3.5 text-slate-500" />
-              {new Date(trace.timestamp).toLocaleTimeString()}
+              {trace?.timestamp ? new Date(trace.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString()}
             </div>
           </div>
         </div>
@@ -193,7 +191,7 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
               />
             </div>
             <div className="text-[11px] text-slate-400 font-mono">
-              Timeline: 0ms to {trace.duration.toFixed(1)}ms
+              Timeline: 0ms to {totalDuration.toFixed(1)}ms
             </div>
           </div>
 
@@ -202,10 +200,10 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
             <div className="col-span-5">SPAN HIERARCHY</div>
             <div className="col-span-7 flex justify-between pr-4">
               <span>0ms</span>
-              <span>{(trace.duration * 0.25).toFixed(1)}ms</span>
-              <span>{(trace.duration * 0.5).toFixed(1)}ms</span>
-              <span>{(trace.duration * 0.75).toFixed(1)}ms</span>
-              <span>{trace.duration.toFixed(1)}ms</span>
+              <span>{(totalDuration * 0.25).toFixed(1)}ms</span>
+              <span>{(totalDuration * 0.5).toFixed(1)}ms</span>
+              <span>{(totalDuration * 0.75).toFixed(1)}ms</span>
+              <span>{totalDuration.toFixed(1)}ms</span>
             </div>
           </div>
 
@@ -216,9 +214,12 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
               const isSelected = selectedSpan?.id === span.id;
 
               // Timeline calculations
-              const offsetMs = Math.max(0, span.startTime - minTime);
+              const spanStart = span.startTime ?? 0;
+              const spanDuration = Math.max(0.1, span.duration ?? 0.1);
+              const offsetMs = Math.max(0, spanStart - minTime);
               const leftPercent = Math.min(95, Math.max(0, (offsetMs / totalDuration) * 100));
-              const widthPercent = Math.max(1.5, Math.min(100 - leftPercent, (span.duration / totalDuration) * 100));
+              const widthPercent = Math.max(1.5, Math.min(100 - leftPercent, (spanDuration / totalDuration) * 100));
+              const isError = span.status?.code === "ERROR";
 
               return (
                 <div
@@ -233,7 +234,7 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
                   {/* Left Column: Span hierarchy name & service */}
                   <div
                     className="col-span-5 flex items-center gap-1.5 truncate pr-2"
-                    style={{ paddingLeft: `${span.depth * 14}px` }}
+                    style={{ paddingLeft: `${(span.depth ?? 0) * 14}px` }}
                   >
                     <span
                       className="w-2 h-2 rounded-full flex-shrink-0"
@@ -243,7 +244,7 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
                     <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${colors.text} bg-slate-950/60 border ${colors.border}`}>
                       {span.serviceName}
                     </span>
-                    {span.status.code === "ERROR" && (
+                    {isError && (
                       <AlertCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
                     )}
                   </div>
@@ -256,7 +257,7 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
                         style={{
                           left: `${leftPercent}%`,
                           width: `${widthPercent}%`,
-                          backgroundColor: span.status.code === "ERROR" ? "#ef4444" : colors.bar,
+                          backgroundColor: isError ? "#ef4444" : colors.bar,
                         }}
                       />
                     </div>
@@ -267,7 +268,7 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
                         left: `${Math.min(85, leftPercent + widthPercent + 1)}%`,
                       }}
                     >
-                      {span.duration.toFixed(1)}ms
+                      {spanDuration.toFixed(1)}ms
                     </span>
                   </div>
                 </div>
@@ -285,11 +286,16 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
                   <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">
                     Span Inspector
                   </span>
-                  <StatusBadge status={selectedSpan.status.code === "ERROR" ? "unhealthy" : "healthy"} />
+                  <StatusBadge status={selectedSpan.status?.code === "ERROR" ? "unhealthy" : "healthy"} />
                 </div>
                 <h3 className="text-base font-bold text-white mt-1 break-all">{selectedSpan.name}</h3>
                 <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
                   Service: <span className="font-semibold text-slate-200">{selectedSpan.serviceName}</span>
+                  {selectedSpan.kind && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
+                      {selectedSpan.kind}
+                    </span>
+                  )}
                 </p>
               </div>
 
@@ -315,12 +321,12 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
                 )}
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400">Duration:</span>
-                  <span className="font-mono font-bold text-white">{selectedSpan.duration.toFixed(2)} ms</span>
+                  <span className="font-mono font-bold text-white">{(selectedSpan.duration ?? 0).toFixed(2)} ms</span>
                 </div>
               </div>
 
               {/* Error message alert if present */}
-              {selectedSpan.status.message && (
+              {selectedSpan.status?.message && (
                 <div className="bg-red-950/50 border border-red-800/80 rounded-lg p-3 text-xs text-red-300">
                   <div className="flex items-center gap-1.5 font-semibold text-red-200 mb-1">
                     <AlertCircle className="w-3.5 h-3.5" />
@@ -334,10 +340,10 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
               <div>
                 <h4 className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
                   <Code2 className="w-3.5 h-3.5 text-blue-400" />
-                  Span Attributes ({Object.keys(selectedSpan.attributes).length})
+                  Span Attributes ({Object.keys(selectedSpan.attributes || {}).length})
                 </h4>
                 <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
-                  {Object.entries(selectedSpan.attributes).map(([k, v]) => (
+                  {Object.entries(selectedSpan.attributes || {}).map(([k, v]) => (
                     <div
                       key={k}
                       className="flex flex-col p-2 rounded bg-slate-950 border border-slate-800/80 text-[11px]"
@@ -367,7 +373,7 @@ export default function TraceWaterfall({ trace }: TraceWaterfallProps) {
                         <div className="flex items-center justify-between text-slate-300 font-semibold">
                           <span>{evt.name}</span>
                           <span className="text-[10px] font-mono text-slate-500">
-                            {new Date(evt.timestamp).toLocaleTimeString()}
+                            {evt.timestamp ? `${evt.timestamp}ms` : ''}
                           </span>
                         </div>
                       </div>

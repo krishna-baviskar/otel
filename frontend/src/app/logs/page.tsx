@@ -53,6 +53,8 @@ function LogsContent() {
 
   useEffect(() => {
     fetchLogs();
+    const interval = setInterval(fetchLogs, 8000);
+    return () => clearInterval(interval);
   }, [selectedService, selectedLevel, activeTraceId]);
 
   const filteredLogs = logs.filter((log) => {

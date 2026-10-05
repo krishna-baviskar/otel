@@ -1,6 +1,17 @@
 import { ServiceNode, DependencyLink } from '../types/telemetry';
 
 export const SERVICES_CONFIG: Record<string, Omit<ServiceNode, 'status' | 'requestRate' | 'errorRate' | 'avgLatency' | 'p95Latency' | 'activeConnections'>> = {
+  client: {
+    id: 'client',
+    name: 'Frontend Client / Web App',
+    type: 'client',
+    technology: 'Next.js 16 / Web Browser',
+    instances: 1,
+    description: 'Upstream user interface initiating user registration and query operations',
+    monitoredBy: 'RUM / OpenTelemetry',
+    port: 3001,
+    url: 'http://localhost:3001',
+  },
   backend: {
     id: 'backend',
     name: 'Backend Service',
@@ -148,12 +159,32 @@ export const INITIAL_DEPENDENCIES: DependencyLink[] = [
     status: 'healthy',
   },
   {
-    id: 'services->otel-collector',
+    id: 'backend->otel-collector',
     source: 'backend',
     target: 'otel-collector',
     protocol: 'OTLP',
     callRate: 15.2,
     avgLatency: 1.1,
+    errorRate: 0.0,
+    status: 'healthy',
+  },
+  {
+    id: 'mail->otel-collector',
+    source: 'mail-service',
+    target: 'otel-collector',
+    protocol: 'OTLP',
+    callRate: 12.4,
+    avgLatency: 1.2,
+    errorRate: 0.0,
+    status: 'healthy',
+  },
+  {
+    id: 'template->otel-collector',
+    source: 'template-service',
+    target: 'otel-collector',
+    protocol: 'OTLP',
+    callRate: 8.6,
+    avgLatency: 0.9,
     errorRate: 0.0,
     status: 'healthy',
   },

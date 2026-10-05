@@ -17,7 +17,9 @@ import {
   Radio,
   FileCode2,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Send,
+  Laptop
 } from "lucide-react";
 import StatusBadge from "../shared/StatusBadge";
 import ModeBadge from "../shared/ModeBadge";
@@ -39,6 +41,8 @@ export default function InteractiveTopology({
   const [loading, setLoading] = useState(true);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(controlledSelectedId || null);
   const [trafficPulse, setTrafficPulse] = useState(true);
+  const [triggering, setTriggering] = useState(false);
+  const [triggerMsg, setTriggerMsg] = useState<string | null>(null);
 
   // Sync with controlled prop if provided
   useEffect(() => {
@@ -63,7 +67,7 @@ export default function InteractiveTopology({
 
   useEffect(() => {
     fetchTopology();
-    const interval = setInterval(fetchTopology, 8000);
+    const interval = setInterval(fetchTopology, 4000);
     return () => clearInterval(interval);
   }, []);
 
@@ -73,10 +77,30 @@ export default function InteractiveTopology({
     if (onSelectService) onSelectService(next);
   };
 
+  const handleTriggerLiveRequest = async () => {
+    try {
+      setTriggering(true);
+      const res = await fetch('/api/telemetry/trigger-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'signup' }),
+      });
+      const data = await res.json();
+      setTriggerMsg(data.message || 'Request executed!');
+      fetchTopology();
+      setTimeout(() => setTriggerMsg(null), 3500);
+    } catch (err) {
+      console.error('Trigger failed:', err);
+    } finally {
+      setTriggering(false);
+    }
+  };
+
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
 
   // Icon selector based on node type
   const getNodeIcon = (type: string, id: string) => {
+    if (type === "client" || id === "client") return <Laptop className="w-5 h-5 text-sky-400" />;
     if (type === "database") return <Database className="w-5 h-5 text-emerald-400" />;
     if (type === "cache") return <Layers className="w-5 h-5 text-red-400" />;
     if (type === "collector") return <Radio className="w-5 h-5 text-cyan-400" />;
@@ -93,21 +117,42 @@ export default function InteractiveTopology({
   };
 
   return (
-    <div className={`relative bg-slate-950 border border-slate-800 rounded-xl overflow-hidden ${compact ? "h-[450px]" : "h-[680px]"}`}>
+    <div className={`relative bg-slate-950 border border-slate-800 rounded-xl overflow-hidden ${compact ? "h-[480px]" : "h-[700px]"}`}>
       {/* Topology Toolbar */}
-      <div className="absolute top-3 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
-        <div className="flex items-center gap-2 pointer-events-auto bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-xs">
+      <div className="absolute top-3 left-4 right-4 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+        <div className="flex items-center gap-2 pointer-events-auto bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-xs shadow-md">
           <span className="font-semibold text-slate-200 flex items-center gap-1.5">
             <Radio className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
-            Live Service Dependency Graph
+            Live Distributed Topology
           </span>
           <span className="text-slate-600">|</span>
-          <span className="text-slate-400">{nodes.length} Nodes</span>
+          <span className="text-slate-400 font-mono">{nodes.length} Nodes</span>
           <span className="text-slate-600">•</span>
-          <span className="text-slate-400">{links.length} Active Edges</span>
+          <span className="text-slate-400 font-mono">{links.length} Connected Streams</span>
+          <span className="text-slate-600">|</span>
+          <span className="text-emerald-400 flex items-center gap-1 text-[11px]">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+            Real-time (4s poll)
+          </span>
         </div>
 
         <div className="flex items-center gap-2 pointer-events-auto">
+          {triggerMsg && (
+            <span className="text-[11px] font-mono text-emerald-400 bg-emerald-950/80 px-2 py-1 rounded border border-emerald-800 animate-in fade-in">
+              {triggerMsg}
+            </span>
+          )}
+
+          <button
+            onClick={handleTriggerLiveRequest}
+            disabled={triggering}
+            className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-blue-500/20 transition-all active:scale-95 disabled:opacity-50"
+            title="Sends a real registration request through all 8 microservices"
+          >
+            <Send className={`w-3 h-3 ${triggering ? "animate-spin" : ""}`} />
+            {triggering ? "Sending..." : "⚡ Send Real Request"}
+          </button>
+
           <button
             onClick={() => setTrafficPulse(!trafficPulse)}
             className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors flex items-center gap-1.5 ${
@@ -119,6 +164,7 @@ export default function InteractiveTopology({
             <Activity className="w-3 h-3" />
             {trafficPulse ? "Pulse ON" : "Pulse OFF"}
           </button>
+
           <button
             onClick={fetchTopology}
             className="p-1.5 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
@@ -126,6 +172,7 @@ export default function InteractiveTopology({
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-blue-400" : ""}`} />
           </button>
+
           {!compact && (
             <Link
               href="/topology"
@@ -141,7 +188,11 @@ export default function InteractiveTopology({
       {/* Main SVG and Canvas */}
       <div className="w-full h-full relative overflow-auto select-none bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px]">
         {/* SVG Links */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
+        <svg
+          viewBox="0 0 1000 650"
+          preserveAspectRatio="none"
+          className="absolute inset-0 w-full h-full pointer-events-none z-0"
+        >
           <defs>
             <linearGradient id="link-grad" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.8" />
@@ -158,36 +209,41 @@ export default function InteractiveTopology({
             const targetNode = nodes.find((n) => n.id === link.target);
             if (!sourceNode || !targetNode) return null;
 
-            // Compute center coords (scale percentages to container)
-            const x1 = `${sourceNode.position?.x ?? 50}%`;
-            const y1 = `${sourceNode.position?.y ?? 50}%`;
-            const x2 = `${targetNode.position?.x ?? 50}%`;
-            const y2 = `${targetNode.position?.y ?? 50}%`;
+            // Map node percentage position (0-100) to SVG viewBox coordinates (1000 x 650)
+            const x1 = (sourceNode.position?.x ?? 50) * 10;
+            const y1 = (sourceNode.position?.y ?? 50) * 6.5;
+            const x2 = (targetNode.position?.x ?? 50) * 10;
+            const y2 = (targetNode.position?.y ?? 50) * 6.5;
 
             const isHighlighted = selectedNodeId === link.source || selectedNodeId === link.target;
+            const pathId = `link-path-${link.id.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+            const pathD = `M ${x1} ${y1} L ${x2} ${y2}`;
 
             return (
               <g key={link.id}>
                 {/* Background Link Line */}
-                <line
-                  x1={x1}
-                  y1={y1}
-                  x2={x2}
-                  y2={y2}
-                  stroke={isHighlighted ? "#60a5fa" : "#334155"}
-                  strokeWidth={isHighlighted ? 2.5 : 1.5}
-                  strokeDasharray={link.protocol === "telemetry" ? "4 4" : undefined}
+                <path
+                  id={pathId}
+                  d={pathD}
+                  stroke={isHighlighted ? "#60a5fa" : link.protocol === "OTLP" ? "#06b6d4" : "#334155"}
+                  strokeWidth={isHighlighted ? 2.5 : link.protocol === "OTLP" ? 1.5 : 1.8}
+                  strokeDasharray={link.protocol === "OTLP" ? "4 4" : undefined}
+                  fill="none"
                   className="transition-all duration-300"
                 />
 
-                {/* Animated Traffic Particle */}
+                {/* Animated Traffic Particle flowing along the path */}
                 {trafficPulse && (
-                  <circle r={isHighlighted ? 3.5 : 2.5} fill={isHighlighted ? "#93c5fd" : "#38bdf8"}>
+                  <circle
+                    r={isHighlighted ? 4 : 2.5}
+                    fill={isHighlighted ? "#93c5fd" : link.protocol === "OTLP" ? "#22d3ee" : "#38bdf8"}
+                  >
                     <animateMotion
-                      path={`M 0 0 L 0 0`} // placeholder, using animate to x/y
-                      dur={`${Math.max(1.2, 4 - (link.callCount || 10) / 40)}s`}
+                      dur={`${Math.max(1.2, 3.8 - (link.callCount || 10) / 100)}s`}
                       repeatCount="indefinite"
-                    />
+                    >
+                      <mpath href={`#${pathId}`} />
+                    </animateMotion>
                   </circle>
                 )}
               </g>
@@ -260,13 +316,13 @@ export default function InteractiveTopology({
 
       {/* Selected Node Details Side/Bottom Drawer */}
       {selectedNode && (
-        <div className="absolute right-4 bottom-4 w-80 bg-slate-900/95 backdrop-blur-xl border border-slate-800 rounded-xl p-4 shadow-2xl z-30 animate-in fade-in slide-in-from-right-4 duration-200">
+        <div className="absolute right-4 bottom-4 w-84 bg-slate-900/95 backdrop-blur-xl border border-slate-800 rounded-xl p-4 shadow-2xl z-30 animate-in fade-in slide-in-from-right-4 duration-200">
           <div className="flex items-center justify-between pb-3 border-b border-slate-800">
             <div className="flex items-center gap-2">
               {getNodeIcon(selectedNode.type, selectedNode.id)}
               <div>
                 <h4 className="text-sm font-bold text-slate-100">{selectedNode.name}</h4>
-                <p className="text-[10px] text-slate-400 capitalize">{selectedNode.type} Component</p>
+                <p className="text-[10px] text-slate-400 capitalize">{selectedNode.technology || selectedNode.type}</p>
               </div>
             </div>
             <StatusBadge status={selectedNode.status} />
@@ -275,53 +331,39 @@ export default function InteractiveTopology({
           <div className="grid grid-cols-2 gap-2 my-3 text-xs">
             <div className="bg-slate-950/70 p-2 rounded-lg border border-slate-800/80">
               <span className="text-[10px] text-slate-500 block">Avg Latency</span>
-              <span className="font-mono font-bold text-slate-200">{selectedNode.latency?.toFixed(1) || "12.4"} ms</span>
-            </div>
-            <div className="bg-slate-950/70 p-2 rounded-lg border border-slate-800/80">
-              <span className="text-[10px] text-slate-500 block">Error Rate</span>
-              <span className={`font-mono font-bold ${selectedNode.errorRate && selectedNode.errorRate > 0 ? "text-red-400" : "text-emerald-400"}`}>
-                {selectedNode.errorRate?.toFixed(2) || "0.00"}%
-              </span>
+              <span className="font-mono font-bold text-slate-200">{(selectedNode.latency ?? 0).toFixed(1)} ms</span>
             </div>
             <div className="bg-slate-950/70 p-2 rounded-lg border border-slate-800/80">
               <span className="text-[10px] text-slate-500 block">Throughput</span>
-              <span className="font-mono font-bold text-slate-200">{selectedNode.rpm || "45"} rpm</span>
+              <span className="font-mono font-bold text-slate-200">{selectedNode.rpm || 312} RPM</span>
             </div>
             <div className="bg-slate-950/70 p-2 rounded-lg border border-slate-800/80">
-              <span className="text-[10px] text-slate-500 block">OTel Export</span>
-              <span className="font-mono font-bold text-cyan-400">gRPC :4317</span>
+              <span className="text-[10px] text-slate-500 block">Instrumented By</span>
+              <span className="font-mono text-[11px] text-blue-400 font-semibold">{selectedNode.monitoredBy || "OpenTelemetry"}</span>
+            </div>
+            <div className="bg-slate-950/70 p-2 rounded-lg border border-slate-800/80">
+              <span className="text-[10px] text-slate-500 block">Network Port</span>
+              <span className="font-mono text-[11px] text-slate-300">{selectedNode.port ? `:${selectedNode.port}` : "Internal"}</span>
             </div>
           </div>
 
-          <div className="space-y-1.5 text-[11px] text-slate-300">
-            <div className="flex items-center justify-between text-slate-400">
-              <span>Protocol</span>
-              <span className="font-mono text-slate-200">{selectedNode.id === "template-service" ? "gRPC / HTTP" : "HTTP/REST"}</span>
-            </div>
-            <div className="flex items-center justify-between text-slate-400">
-              <span>Environment</span>
-              <span className="font-mono text-slate-200">Docker (Ubuntu WSL2)</span>
-            </div>
-            <div className="flex items-center justify-between text-slate-400">
-              <span>Dynatrace OneAgent</span>
-              <span className="font-mono text-amber-400">Simulated / Dev</span>
-            </div>
-          </div>
+          <p className="text-[11px] text-slate-400 leading-relaxed mb-3">
+            {selectedNode.description}
+          </p>
 
-          <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/traces?service=${selectedNode.id}`}
+              className="flex-1 text-center py-1.5 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+            >
+              Explore Traces <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
             <button
               onClick={() => setSelectedNodeId(null)}
-              className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
+              className="py-1.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-medium transition-colors"
             >
-              Dismiss
+              Close
             </button>
-            <Link
-              href={`/services/${selectedNode.id}`}
-              className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
-            >
-              View Service Details
-              <ArrowRight className="w-3 h-3" />
-            </Link>
           </div>
         </div>
       )}
