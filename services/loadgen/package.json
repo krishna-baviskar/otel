@@ -1,0 +1,26 @@
+{
+  "name": "loadgen",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "req:single": "node -r dotenv/config single.js"
+  },
+  "keywords": [],
+  "author": "Krishna Baviskar (https://github.com/krishna-baviskar)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/krishna-baviskar/otel.git"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "express": "^4.17.1",
+    "faker": "^5.5.3",
+    "pino": "^6.13.1"
+  },
+  "devDependencies": {
+    "dotenv": "^10.0.0",
+    "eslint": "^8.3.0"
+  }
+}

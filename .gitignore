@@ -1,0 +1,6 @@
+**/node_modules
+services/mongodb/data
+services/redis/data
+
+**/.env
+docker-compose.override.yaml
